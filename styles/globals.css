@@ -1,0 +1,10 @@
+/* Other CSS rules... */
+
+@media (min-width: 1400px) {
+  .container {
+    /* max-width: 1200px; This line is removed */
+  }
+  /* other styles for 1400px breakpoint */
+}
+
+/* If there are no other rules in this media query, you can remove the entire block */
