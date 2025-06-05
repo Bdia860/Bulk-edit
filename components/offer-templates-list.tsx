@@ -27,6 +27,7 @@ import { CssPreview } from "./css-preview"
 import { Topbar } from "./topbar"
 import { SaveAllDialog } from "./save-all-dialog"
 import { ConnectionTestDialog } from "./connection-test-dialog"
+import TemplateEditor from "./templates/TemplateEditor"
 
 hljs.registerLanguage("html", html)
 
@@ -1177,14 +1178,11 @@ export default function OfferTemplatesList() {
               <div className="h-full">
                 {/* Editor content based on mode */}
                 {editorMode === "content" && (
-                  <div className="h-full">
-                    <textarea
-                      className="w-full h-full p-4 rounded-lg bg-muted font-mono text-sm resize-none"
-                      value={editableContent}
-                      onChange={(e) => handleContentChange(e.target.value)}
-                      spellCheck={false}
-                    />
-                  </div>
+                  <TemplateEditor
+                    content={editableContent}
+                    onChange={handleContentChange}
+                    className="h-full"
+                  />
                 )}
                 {editorMode === "style" && (
                   <div className="flex flex-col h-full">
