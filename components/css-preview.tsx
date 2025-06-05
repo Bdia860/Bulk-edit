@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ShadowPreview } from "./shadow-preview"
+
 
 interface CssPreviewProps {
   css: string
-  html?: string
+  html: string // Rendre html obligatoire car l'iframe en a besoin
   className?: string
 }
 
@@ -20,13 +20,37 @@ function filterDangerousTags(html: string): string {
 
 export function CssPreview({ css, html, className }: CssPreviewProps) {
   const [activeTab, setActiveTab] = useState<string>("template")
-  const [previewHtml, setPreviewHtml] = useState<string>("")
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [previewHtml, setPreviewHtml] = useState<string>("") // Gardé pour l'onglet "Éléments de base"
 
-  // Generate sample HTML for preview if not provided
+  // Mettre à jour l'iframe lorsque html ou css changent
   useEffect(() => {
-    if (html) {
+    if (iframeRef.current && html) {
+      console.log("CssPreview - Injecting CSS:", css); // AJOUTER CE LOG
+      const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
+      if (iframeDoc) {
+        iframeDoc.open()
+        iframeDoc.write(`
+          <html>
+            <head>
+              <style type="text/css">${css}</style>
+            </head>
+            <body>
+              ${filterDangerousTags(html)}
+            </body>
+          </html>
+        `)
+        iframeDoc.close()
+      }
+    }
+  }, [html, css])
+
+  // Générer un HTML d'exemple pour l'onglet "Éléments de base" si html n'est pas fourni ou est vide
+  // Cela n'affecte pas l'iframe principale qui utilise directement la prop `html`
+  useEffect(() => {
+    if (html && activeTab === "elements") { // S'assurer que cela ne s'exécute que pour l'onglet éléments
       setPreviewHtml(html)
-    } else {
+    } else if (activeTab === "elements") {
       const sampleHtml = `
         <div class="preview-container">
           <h1>Titre principal</h1>
@@ -56,7 +80,7 @@ export function CssPreview({ css, html, className }: CssPreviewProps) {
       `
       setPreviewHtml(sampleHtml)
     }
-  }, [html])
+  }, [html, activeTab])
 
   return (
     <div className={className}>
@@ -67,15 +91,20 @@ export function CssPreview({ css, html, className }: CssPreviewProps) {
         </TabsList>
 
         <TabsContent value="template" className="flex-1">
-          <Card className="h-full">
+          <Card className="h-full flex flex-col">
             <CardHeader className="p-3">
               <CardTitle className="text-sm">Aperçu du template</CardTitle>
               <CardDescription>Visualisation du template avec les styles appliqués</CardDescription>
             </CardHeader>
-            <CardContent className="p-3 h-[calc(100%-80px)]">
-              <ScrollArea className="h-full border rounded-md p-4">
+            <CardContent className="p-3 flex-1 flex flex-col">
+              <ScrollArea className="h-full border rounded-md flex-1">
                 {html ? (
-                  <ShadowPreview html={html} css={css} />
+                  <iframe
+                    ref={iframeRef}
+                    title="Template Preview"
+                    className="w-full h-full border-0"
+                    sandbox="allow-scripts allow-same-origin" // Optionnel: ajuster selon les besoins de sécurité
+                  />
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">Aucun contenu HTML à prévisualiser</div>
                 )}

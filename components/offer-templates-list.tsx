@@ -380,7 +380,6 @@ export default function OfferTemplatesList() {
         console.log("Style set to:", config.style || "")
       }
 
-      applyStyle(config.style || "")
     }
   }, [selectedTemplateId, templateConfigs])
 
@@ -605,9 +604,6 @@ export default function OfferTemplatesList() {
         [selectedTemplateId]: { ...config },
       }))
 
-      // Appliquer le style
-      applyStyle(currentStyle)
-
       // Mettre à jour l'état original pour que les modifications futures soient détectées correctement
       setOriginalContents((prev) => ({
         ...prev,
@@ -718,9 +714,6 @@ export default function OfferTemplatesList() {
 
       addModificationLog(selectedTemplateId, "Modification du style", `Style CSS modifié`)
       updateTemplateStatus(selectedTemplateId, "Modifié")
-
-      // Appliquer le style immédiatement
-      applyStyle(value)
     }
   }
 
@@ -746,34 +739,6 @@ export default function OfferTemplatesList() {
       }))
       addModificationLog(selectedTemplateId, "Modification du footer", `Footer modifié`)
       updateTemplateStatus(selectedTemplateId, "Modifié")
-    }
-  }
-
-  // Enhance the applyStyle function to handle errors
-  const applyStyle = (styleContent: string) => {
-    console.log("Applying style:", styleContent)
-    try {
-      const styleElement = document.getElementById("dynamic-template-style")
-      if (styleElement) {
-        console.log("Updating existing style element")
-        styleElement.textContent = styleContent
-      } else {
-        console.log("Creating new style element")
-        const newStyleElement = document.createElement("style")
-        newStyleElement.id = "dynamic-template-style"
-        newStyleElement.textContent = styleContent
-        document.head.appendChild(newStyleElement)
-      }
-      return true
-    } catch (error) {
-      console.error("Error applying CSS style:", error)
-      toast({
-        title: "Erreur de style",
-        description: "Le style CSS contient des erreurs et n'a pas pu être appliqué.",
-        variant: "destructive",
-        duration: 3000,
-      })
-      return false
     }
   }
 
@@ -1269,7 +1234,7 @@ export default function OfferTemplatesList() {
                         <CssEditor
                           value={style}
                           onChange={handleStyleChange}
-                          onApply={applyStyle}
+                          onApply={() => true}
                           className="h-full"
                         />
                       </div>
@@ -1368,7 +1333,7 @@ export default function OfferTemplatesList() {
         isOpen={isSearchReplaceModalOpen}
         onClose={() => setIsSearchReplaceModalOpen(false)}
         templates={templates}
-        currentTemplateId={selectedTemplateId}
+        currentTemplateId={selectedTemplateId || ""}
         contents={modifiedContents}
         onApplyChanges={handleApplyChanges}
       />
@@ -1399,7 +1364,7 @@ export default function OfferTemplatesList() {
         templateConfigs={templateConfigs}
         headers={headers}
         footers={footers}
-        apiToken={apiToken}
+        apiToken={apiToken || ""}
         onSaveComplete={handleSaveAllComplete}
       />
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,6 +25,13 @@ interface CssProperty {
   category: string
 }
 
+function filterDangerousTags(html: string): string {
+  // Filtre basique, envisagez une bibliothèque plus robuste pour la production
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "");
+}
+
 export function CssEditor({ value, onChange, onApply, className }: CssEditorProps) {
   console.log("CssEditor received value:", value)
 
@@ -33,6 +40,7 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [previewHtml, setPreviewHtml] = useState<string>("")
   const [isLivePreview, setIsLivePreview] = useState<boolean>(true)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // CSS categories
   const categories = [
@@ -71,12 +79,36 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
   useEffect(() => {
     console.log("CssEditor useEffect - value changed:", value)
     parseCss(value)
-    if (isLivePreview) {
-      console.log("Applying style due to live preview")
-      const result = onApply(value)
-      console.log("Style application result:", result)
+    if (isLivePreview && iframeRef.current && previewHtml) {
+      console.log("CssEditor - Injecting CSS to preview iframe:", value); // AJOUTER CE LOG
+      const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
+      if (iframeDoc) {
+        iframeDoc.open()
+        iframeDoc.write(`
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Preview</title>
+              <style type="text/css">
+                html, body {
+                  margin: 0;
+                  padding: 0;
+                  height: 100%;
+                  width: 100%;
+                  overflow: auto;
+                }
+                ${value}
+              </style>
+            </head>
+            <body>
+              ${filterDangerousTags(previewHtml)}
+            </body>
+          </html>
+        `)
+        iframeDoc.close()
+      }
     }
-  }, [value, isLivePreview, onApply])
+  }, [value, isLivePreview, previewHtml, iframeRef])
 
   // Generate sample HTML for preview
   useEffect(() => {
@@ -334,16 +366,20 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
           </div>
         </TabsContent>
 
-        <TabsContent value="preview" className="flex-1">
-          <Card className="h-full">
+        <TabsContent value="preview" className="flex-1 flex flex-col">
+          <Card className="h-full flex flex-col">
             <CardHeader className="p-3">
               <CardTitle className="text-sm">Prévisualisation du style</CardTitle>
               <CardDescription>Aperçu de l'apparence des éléments avec le style appliqué</CardDescription>
             </CardHeader>
-            <CardContent className="p-3 h-[calc(100%-80px)]">
-              <div className="border rounded-md h-full overflow-auto p-4">
-                <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
-              </div>
+            <CardContent className="p-3 flex-1">
+              {/* La ScrollArea n'est plus nécessaire ici, l'iframe gère son propre défilement si besoin */}
+              <iframe
+                ref={iframeRef}
+                title="CSS Editor Preview"
+                className="w-full h-full border rounded-md bg-white"
+                sandbox="allow-scripts allow-same-origin" // Ajustez selon les besoins
+              />
             </CardContent>
           </Card>
         </TabsContent>
