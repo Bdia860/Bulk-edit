@@ -1222,55 +1222,57 @@ export default function OfferTemplatesList() {
                   </div>
                 )}
                 {editorMode === "style" && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col h-full">
+                    <div className="grid grid-cols-2 gap-4 mb-6">
                       <div>
-                        <Label htmlFor="marginTop">Top margin</Label>
+                        <Label htmlFor="marginTop">Marge haute</Label>
                         <Input
                           id="marginTop"
                           value={marginTop}
                           onChange={(e) => handleMarginChange("marginTop", e.target.value)}
-                          placeholder="e.g., 25mm"
+                          placeholder="ex: 25mm"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="marginRight">Right margin</Label>
+                        <Label htmlFor="marginRight">Marge droite</Label>
                         <Input
                           id="marginRight"
                           value={marginRight}
                           onChange={(e) => handleMarginChange("marginRight", e.target.value)}
-                          placeholder="e.g., 10mm"
+                          placeholder="ex: 10mm"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="marginBottom">Bottom margin</Label>
+                        <Label htmlFor="marginBottom">Marge basse</Label>
                         <Input
                           id="marginBottom"
                           value={marginBottom}
                           onChange={(e) => handleMarginChange("marginBottom", e.target.value)}
-                          placeholder="e.g., 25mm"
+                          placeholder="ex: 25mm"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="marginLeft">Left margin</Label>
+                        <Label htmlFor="marginLeft">Marge gauche</Label>
                         <Input
                           id="marginLeft"
                           value={marginLeft}
                           onChange={(e) => handleMarginChange("marginLeft", e.target.value)}
-                          placeholder="e.g., 10mm"
+                          placeholder="ex: 10mm"
                         />
                       </div>
                     </div>
-                    <div>
+                    <div className="flex-1 flex flex-col">
                       <Label htmlFor="style" className="mb-2 block">
                         CSS Style
                       </Label>
-                      <CssEditor
-                        value={style}
-                        onChange={handleStyleChange}
-                        onApply={applyStyle}
-                        className="h-[calc(100vh-300px)]"
-                      />
+                      <div className="flex-1 min-h-0">
+                        <CssEditor
+                          value={style}
+                          onChange={handleStyleChange}
+                          onApply={applyStyle}
+                          className="h-full"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
