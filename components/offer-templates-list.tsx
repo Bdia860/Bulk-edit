@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Lightbulb, WifiOff } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import type { OfferTemplate, OfferTemplatesResponse, Config } from "../types/offer-template"
 import { fetchOfferTemplates, updateOfferTemplate } from "../services/api"
@@ -42,6 +43,8 @@ interface ModificationLog {
   action: string
   details: string
 }
+
+// Utilisation de l'interface OfferTemplate importée depuis "../types/offer-template"
 
 type TemplateStatus = "Non ouvert" | "Ouvert" | "Modifié" | "Copié"
 
@@ -116,7 +119,6 @@ const suggestedReplacements: Suggestion[] = [
     to: "<p><mark>☐☑️</mark> vos soins <mark>☐☑️</mark> nos soins</p>",
     isRegex: true,
   },
-  // Ajout des références à remplacer
   {
     from: "24-6000-34-G3",
     to: "[REFERENCE]",
@@ -155,6 +157,36 @@ const cleanText = (text: string) => {
 export default function OfferTemplatesList() {
   const [templates, setTemplates] = useState<OfferTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+
+  // Fonction utilitaire pour mettre à jour un template avec toutes les propriétés requises
+  const updateTemplate = (id: string, updates: Partial<OfferTemplate>): void => {
+    setTemplates(prev => 
+      prev.map(t => {
+        if (t.id === id) {
+          // Mettre à jour le statut du template à "Modifié"
+          updateTemplateStatus(id, "Modifié");
+          
+          return {
+            ...t,
+            ...updates,
+            // S'assurer que toutes les propriétés requises sont présentes
+            type: updates.type ?? t.type ?? '',
+            type_code: updates.type_code ?? t.type_code ?? '',
+            deleted_at: updates.deleted_at ?? t.deleted_at ?? null,
+            inactivated_at: updates.inactivated_at ?? t.inactivated_at ?? null,
+            config: updates.config ?? t.config ?? {
+              marginTop: '25mm',
+              marginRight: '10mm',
+              marginBottom: '25mm',
+              marginLeft: '10mm',
+              style: ''
+            }
+          };
+        }
+        return t;
+      })
+    );
+  };
   const [modifiedContents, setModifiedContents] = useState<Record<string, string>>({})
   const [originalContents, setOriginalContents] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
@@ -199,9 +231,9 @@ export default function OfferTemplatesList() {
   // Utiliser le contexte d'authentification
   const { token: apiToken, login, logout, isAuthenticated } = useAuthContext()
 
-  // Modifier la déclaration de l'état editorMode pour inclure header et footer
-  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer">(
-    "content",
+  // Définition des modes de l'éditeur
+  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general">(
+    "general",
   )
 
   // Add a new state for CSS preview
@@ -269,12 +301,10 @@ export default function OfferTemplatesList() {
     setLoading(true)
     setError(null)
     try {
-      console.log("Tentative de connexion à l'API avec le token fourni")
       const response: OfferTemplatesResponse = await fetchOfferTemplates(1, 1000, "", apiToken)
       if (!response || !response.data) {
         throw new Error("Format de réponse invalide")
       }
-      console.log("Connexion réussie, données reçues:", response.data.length, "templates")
       setTemplates(response.data)
 
       const initialSuggestions: Record<string, number> = {}
@@ -320,8 +350,7 @@ export default function OfferTemplatesList() {
       setOriginalHeaders(initialOriginalHeaders)
       setOriginalFooters(initialOriginalFooters)
 
-      console.log("API Response Templates:", response.data)
-      console.log("Initial Template Configs:", initialTemplateConfigs)
+
 
       if (response.data.length > 0) {
         setSelectedTemplateId(response.data[0].id)
@@ -365,21 +394,11 @@ export default function OfferTemplatesList() {
   useEffect(() => {
     if (selectedTemplateId && templateConfigs[selectedTemplateId]) {
       const config = templateConfigs[selectedTemplateId]
-      console.log("Loading style for template:", selectedTemplateId)
-      console.log("Template config:", config)
       setMarginTop(config.marginTop)
       setMarginRight(config.marginRight)
       setMarginBottom(config.marginBottom)
       setMarginLeft(config.marginLeft)
-
-      // Vérifier si le style existe dans la config
-      if (config.style === undefined) {
-        console.log("Style is undefined, setting to empty string")
-        setStyle("")
-      } else {
-        setStyle(config.style || "")
-        console.log("Style set to:", config.style || "")
-      }
+      setStyle(config.style || "")
 
     }
   }, [selectedTemplateId, templateConfigs])
@@ -550,7 +569,31 @@ export default function OfferTemplatesList() {
 
   // Ajouter cette fonction après les autres fonctions
   const handleSaveToGeosquare = useCallback(async () => {
-    if (!selectedTemplateId) return
+    if (!selectedTemplateId || !selectedTemplate) {
+      console.error("Aucun template sélectionné ou template non chargé");
+      toast({
+        title: "Erreur",
+        description: "Aucun template sélectionné ou template non chargé.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Forcer la mise à jour de l'état avec les dernières modifications du formulaire
+    // Cela garantit que les changements dans les champs sont bien pris en compte
+    const form = document.getElementById('template-general-form') as HTMLFormElement;
+    if (form) {
+      const formData = new FormData(form);
+      const name = formData.get('template-name') as string;
+      const description = formData.get('template-description') as string;
+      
+      if (name !== selectedTemplate.name || description !== (selectedTemplate.description || '')) {
+        updateTemplate(selectedTemplateId, {
+          name,
+          description: description || ''
+        });
+      }
+    }
 
     // Vérifier l'état de la connexion réseau
     if (networkStatus === "offline") {
@@ -575,28 +618,123 @@ export default function OfferTemplatesList() {
         style: currentStyle,
       }
 
-      console.log("Saving template with config:", config)
-      console.log("Current style value:", currentStyle)
 
-      // Dans la fonction handleSaveToGeosquare, remplacer l'appel à updateOfferTemplate par:
+      // Récupérer les valeurs actuelles du formulaire
+      const form = document.getElementById('template-general-form') as HTMLFormElement;
+      let name = selectedTemplate.name;
+      let description = selectedTemplate.description || '';
+      
+      if (form) {
+        const formData = new FormData(form);
+        const nameValue = formData.get('template-name');
+        const descValue = formData.get('template-description');
+        name = nameValue ? nameValue.toString() : name;
+        description = descValue ? descValue.toString() : description;
+      }
+
+      // Préparer l'objet de mise à jour avec toutes les propriétés nécessaires
+      const updatedTemplate = {
+        ...templates.find(t => t.id === selectedTemplateId) || selectedTemplate,
+        name,
+        description,
+        content: modifiedContents[selectedTemplateId] || '',
+        config: {
+          marginTop,
+          marginRight,
+          marginBottom,
+          marginLeft,
+          style: currentStyle,
+        },
+        header: headers[selectedTemplateId] || "",
+        footer: footers[selectedTemplateId] || ""
+      };
+
+      // Mettre à jour le template avec toutes les propriétés en une seule requête
       await updateOfferTemplate(
         selectedTemplateId,
-        modifiedContents[selectedTemplateId],
-        config,
+        updatedTemplate.content || '', // S'assurer que content est une string
+        {
+          marginTop: updatedTemplate.config.marginTop || '25mm',
+          marginRight: updatedTemplate.config.marginRight || '10mm',
+          marginBottom: updatedTemplate.config.marginBottom || '25mm',
+          marginLeft: updatedTemplate.config.marginLeft || '10mm',
+          style: updatedTemplate.config.style || ''
+        },
         apiToken,
-        headers[selectedTemplateId],
-        footers[selectedTemplateId],
-      )
+        updatedTemplate.header || '', // S'assurer que header est une string
+        updatedTemplate.footer || ''  // S'assurer que footer est une string
+      );
+
+      // Mettre à jour l'état local avec les nouvelles valeurs
+      updateTemplate(selectedTemplateId, {
+        name: updatedTemplate.name,
+        description: updatedTemplate.description || '', // S'assurer que description est une string
+        config: updatedTemplate.config,
+        header: updatedTemplate.header,
+        footer: updatedTemplate.footer
+      });
+
+      const updateResponse = await fetch(`/api/proxy-offer-templates/${selectedTemplateId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+          ...updatedTemplate, // Inclure toutes les propriétés du template
+          content: modifiedContents[selectedTemplateId],
+          config: {
+            marginTop,
+            marginRight,
+            marginBottom,
+            marginLeft,
+            style: currentStyle,
+          },
+          header: headers[selectedTemplateId] || "",
+          footer: footers[selectedTemplateId] || "",
+        }),
+      });
+
+      if (!updateResponse.ok) {
+        console.error('Erreur lors de la requête:', {
+          status: updateResponse.status,
+          statusText: updateResponse.statusText,
+          headers: Object.fromEntries(updateResponse.headers.entries())
+        });
+        
+        let errorData;
+        try {
+          errorData = await updateResponse.json();
+          console.error('Détails de l\'erreur:', errorData);
+        } catch (e) {
+          console.error('Impossible de parser la réponse d\'erreur:', e);
+          errorData = { message: 'Réponse non-JSON' };
+        }
+        
+        throw new Error(
+          `Erreur lors de la mise à jour du template: ${updateResponse.status} ${updateResponse.statusText} - ${JSON.stringify(errorData)}`
+        );
+      }
+      
+      try {
+        // Vérification silencieuse de la réponse
+        await updateResponse.json();
+      } catch (e) {
+        // Ignorer l'erreur de parsing si la réponse est vide
+      }
+
       addModificationLog(
         selectedTemplateId,
         "Sauvegarde sur Geosquare",
-        "Contenu, marges et style mis à jour sur Geosquare",
+        "Contenu, marges, style, nom et description mis à jour sur Geosquare",
       )
+
       toast({
         title: "Sauvegarde réussie",
-        description: "Le contenu, les marges et le style ont été mis à jour sur Geosquare avec succès.",
+        description: "Le template a été mis à jour avec succès sur Geosquare.",
         duration: 3000,
       })
+
       updateTemplateStatus(selectedTemplateId, "Copié")
 
       // Mettre à jour la configuration dans l'état local
@@ -610,7 +748,8 @@ export default function OfferTemplatesList() {
         ...prev,
         [selectedTemplateId]: modifiedContents[selectedTemplateId],
       }))
-      // Et après la mise à jour de l'état original:
+      
+      // Mettre à jour les états originaux des en-têtes et pieds de page
       setOriginalHeaders((prev) => ({
         ...prev,
         [selectedTemplateId]: headers[selectedTemplateId],
@@ -697,7 +836,6 @@ export default function OfferTemplatesList() {
 
   const handleStyleChange = (value: string) => {
     if (selectedTemplateId) {
-      console.log("Style changed to:", value)
       setStyle(value)
 
       // Mettre à jour la configuration dans l'état local
@@ -706,7 +844,6 @@ export default function OfferTemplatesList() {
           ...prev[selectedTemplateId],
           style: value,
         }
-        console.log("Updated template config:", updatedConfig)
         return {
           ...prev,
           [selectedTemplateId]: updatedConfig,
@@ -1126,14 +1263,7 @@ export default function OfferTemplatesList() {
               )}
             </div>
           </div>
-          {loading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="animate-pulse space-y-4">
-                <div className="h-4 w-32 bg-muted rounded" />
-                <div className="h-4 w-24 bg-muted rounded" />
-              </div>
-            </div>
-          ) : (
+          <div className="flex-1 overflow-hidden">
             <TemplateList
               templates={templates}
               selectedId={selectedTemplateId}
@@ -1155,14 +1285,16 @@ export default function OfferTemplatesList() {
                 }
               }}
               onArchive={(template) => handleArchiveTemplate(template.id)}
+              onSaveAll={handleSaveAll}
+              isSavingAll={isSavingAll}
+              hasPendingChanges={hasPendingChanges()}
               getStatus={getTemplateStatus}
               getSuggestions={(id) => templateSuggestions[id] || 0}
               className="flex-1"
             />
-          )}
+          </div>
         </div>
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Topbar onSaveAll={handleSaveAll} isSavingAll={isSavingAll} hasPendingChanges={hasPendingChanges()} />
           <EditorToolbar
             mode={editorMode}
             onModeChange={setEditorMode}
@@ -1177,6 +1309,38 @@ export default function OfferTemplatesList() {
             {selectedTemplate ? (
               <div className="h-full">
                 {/* Editor content based on mode */}
+                {editorMode === "general" && selectedTemplate && (
+                  <form id="template-general-form" className="space-y-6">
+                    <div>
+                      <Label htmlFor="template-name">Nom du template</Label>
+                      <Input
+                        id="template-name"
+                        name="template-name"
+                        value={selectedTemplate.name}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          if (!selectedTemplateId) return;
+                          updateTemplate(selectedTemplateId, { name: e.target.value });
+                        }}
+                        placeholder="Nom du template"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="template-description">Description</Label>
+                      <Textarea
+                        id="template-description"
+                        name="template-description"
+                        value={selectedTemplate.description || ''}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                          if (!selectedTemplateId) return;
+                          updateTemplate(selectedTemplateId, { description: e.target.value });
+                        }}
+                        placeholder="Description du template"
+                        className="mt-1 min-h-[100px]"
+                      />
+                    </div>
+                  </form>
+                )}
                 {editorMode === "content" && (
                   <TemplateEditor
                     content={editableContent}

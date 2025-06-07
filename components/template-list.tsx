@@ -1,4 +1,4 @@
-import { Archive, ExternalLink } from "lucide-react"
+import { Archive, ExternalLink, Save } from "lucide-react"
 import { Button } from "./ui/button"
 import { ScrollArea } from "./ui/scroll-area"
 import { Badge } from "./ui/badge"
@@ -10,6 +10,9 @@ interface TemplateListProps {
   selectedId: string | null
   onSelect: (template: OfferTemplate) => void
   onArchive: (template: OfferTemplate) => void
+  onSaveAll?: () => void
+  isSavingAll?: boolean
+  hasPendingChanges?: boolean
   getStatus: (id: string) => {
     label: string
     color: string
@@ -23,13 +26,31 @@ export function TemplateList({
   selectedId,
   onSelect,
   onArchive,
+  onSaveAll,
+  isSavingAll = false,
+  hasPendingChanges = false,
   getStatus,
   getSuggestions,
   className,
 }: TemplateListProps) {
   return (
-    <ScrollArea className={`${className} scale-x-115 origin-left`}>
-      <div className="space-y-1 p-2 pr-6 w-[calc(100%+1.5rem)]">
+    <div className="flex flex-col h-full">
+      {onSaveAll && (
+        <div className="flex justify-end p-2 border-b">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSaveAll}
+            disabled={isSavingAll || !hasPendingChanges}
+            className="text-sm font-medium flex items-center gap-1.5"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {isSavingAll ? "Sauvegarde en cours..." : "Sauvegarder tout"}
+          </Button>
+        </div>
+      )}
+      <ScrollArea className={`${className} scale-x-115 origin-left flex-1`}>
+        <div className="space-y-1 p-2 pr-6 w-[calc(100%+1.5rem)]">
         {templates.map((template) => {
           const status = getStatus(template.id)
           const suggestions = getSuggestions(template.id)
@@ -97,7 +118,8 @@ export function TemplateList({
             </Card>
           )
         })}
-      </div>
-    </ScrollArea>
+        </div>
+      </ScrollArea>
+    </div>
   )
 }

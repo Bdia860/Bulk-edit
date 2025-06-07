@@ -33,10 +33,14 @@ function filterDangerousTags(html: string): string {
 }
 
 export function CssEditor({ value, onChange, onApply, className }: CssEditorProps) {
-  console.log("CssEditor received value:", value)
 
   const [activeTab, setActiveTab] = useState<string>("code")
   const [cssProperties, setCssProperties] = useState<CssProperty[]>([])
+  const [cssRules, setCssRules] = useState<Array<{
+    selector: string
+    properties: CssProperty[]
+    category: string
+  }>>([])
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [previewHtml, setPreviewHtml] = useState<string>("")
   const [isLivePreview, setIsLivePreview] = useState<boolean>(true)
@@ -77,10 +81,8 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
 
   // Parse CSS on value change
   useEffect(() => {
-    console.log("CssEditor useEffect - value changed:", value)
     parseCss(value)
     if (isLivePreview && iframeRef.current && previewHtml) {
-      console.log("CssEditor - Injecting CSS to preview iframe:", value); // AJOUTER CE LOG
       const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
       if (iframeDoc) {
         iframeDoc.open()
@@ -142,48 +144,78 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
     setPreviewHtml(sampleHtml)
   }, [])
 
-  // Parse CSS string into properties
+  // Parse CSS string into rules with selectors and properties
   const parseCss = (css: string) => {
-    console.log("Parsing CSS:", css)
     if (!css) {
-      console.log("CSS is empty, setting empty properties")
       setCssProperties([])
+      setCssRules([])
       return
     }
 
     try {
-      const properties: CssProperty[] = []
-      const rules = css.match(/([^{}]+)(?=\{[^{}]*\})/g) || []
-      const declarations = css.match(/\{([^{}]*)\}/g) || []
-
-      console.log("Parsed CSS rules:", rules)
-      console.log("Parsed CSS declarations:", declarations)
-
-      rules.forEach((selector, index) => {
-        const declarationBlock = declarations[index]
-        if (declarationBlock) {
-          const props = declarationBlock.replace(/[{}]/g, "").split(";")
-          props.forEach((prop) => {
-            const [property, value] = prop.split(":").map((s) => s.trim())
-            if (property && value) {
-              const category = commonProperties[property]?.category || "other"
-              const description = commonProperties[property]?.description || ""
-              properties.push({
-                property,
-                value,
-                description,
-                category,
-              })
-            }
+      const rules: Array<{
+        selector: string
+        properties: CssProperty[]
+        category: string
+      }> = []
+      
+      // Match all CSS rules with their selectors and declarations
+      const ruleRegex = /([^{]+)\s*\{([^}]*)\}/g
+      let match
+      
+      // Reset the regex state
+      ruleRegex.lastIndex = 0
+      
+      // Parse each CSS rule
+      while ((match = ruleRegex.exec(css)) !== null) {
+        const selector = match[1].trim()
+        const declarations = match[2].split(';')
+        const properties: CssProperty[] = []
+        
+        // Parse each declaration in the rule
+        declarations.forEach(declaration => {
+          const [property, ...valueParts] = declaration.split(':').map(s => s.trim())
+          const value = valueParts.join(':').trim()
+          
+          if (property && value) {
+            const category = commonProperties[property]?.category || "other"
+            const description = commonProperties[property]?.description || ""
+            properties.push({
+              property,
+              value,
+              description,
+              category,
+            })
+          }
+        })
+        
+        if (properties.length > 0) {
+          // Determine the most common category for this rule
+          const categoryCounts = properties.reduce((acc, prop) => {
+            acc[prop.category] = (acc[prop.category] || 0) + 1
+            return acc
+          }, {} as Record<string, number>)
+          
+          const mainCategory = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "other"
+          
+          rules.push({
+            selector,
+            properties,
+            category: mainCategory
           })
         }
-      })
+      }
+      
+      // Flatten properties for the properties tab
+      const allProperties = rules.flatMap(rule => rule.properties)
+      setCssProperties(allProperties)
+      setCssRules(rules)
+      
 
-      console.log("Extracted CSS properties:", properties)
-      setCssProperties(properties)
     } catch (error) {
-      console.error("Error parsing CSS:", error)
+      console.error("Error parsing CSS")
       setCssProperties([])
+      setCssRules([])
     }
   }
 
@@ -214,18 +246,35 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
   // Update a CSS property
   const updateProperty = (index: number, newValue: string) => {
     const updatedProperties = [...cssProperties]
-    updatedProperties[index].value = newValue
-
+    const propertyToUpdate = updatedProperties[index]
+    
+    if (!propertyToUpdate) return
+    
+    // Update the property value
+    propertyToUpdate.value = newValue
+    
     // Rebuild the CSS string
     let newCss = value
-    const property = updatedProperties[index].property
-    const regex = new RegExp(`(${property}\\s*:\\s*)[^;]+(;)`, "g")
-    newCss = newCss.replace(regex, `$1${newValue}$2`)
-
+    
+    // Create a regex that matches the property and its value
+    // This handles various whitespace scenarios
+    const regex = new RegExp(
+      `(${propertyToUpdate.property}\\s*:\\s*)([^;]+)(;|\\s*})`,
+      "g"
+    )
+    
+    // Replace all occurrences of this property in the CSS
+    newCss = newCss.replace(regex, `$1${newValue}$3`)
+    
+    // Update the CSS
     onChange(newCss)
   }
 
-  // Filter properties by category
+  // Filter rules and properties by category
+  const filteredRules = selectedCategory === "all" 
+    ? cssRules 
+    : cssRules.filter((rule: { category: string }) => rule.category === selectedCategory)
+    
   const filteredProperties = cssProperties.filter(
     (prop) => selectedCategory === "all" || prop.category === selectedCategory,
   )
@@ -286,7 +335,6 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
             value={value}
             onChange={(e) => {
               const newValue = e.target.value
-              console.log("CSS textarea changed:", newValue)
               onChange(newValue)
             }}
             className={`w-full h-full p-4 rounded-lg bg-muted font-mono text-sm resize-none ${isEmpty ? "border-dashed border-2 border-gray-300" : ""}`}
@@ -300,7 +348,8 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
         </TabsContent>
 
         <TabsContent value="visual" className="flex-1">
-          <div className="grid grid-cols-4 gap-4 h-full">
+          <div className="grid grid-cols-5 gap-4 h-full">
+            {/* Left sidebar - Categories */}
             <Card className="col-span-1">
               <CardHeader className="p-3">
                 <CardTitle className="text-sm">Catégories</CardTitle>
@@ -310,8 +359,10 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
                   {categories.map((category) => (
                     <div
                       key={category.id}
-                      className={`p-2 rounded-md cursor-pointer ${
-                        selectedCategory === category.id ? "bg-muted" : "hover:bg-muted/50"
+                      className={`p-2 rounded-md cursor-pointer text-sm ${
+                        selectedCategory === category.id 
+                          ? "bg-primary text-primary-foreground" 
+                          : "hover:bg-muted/50"
                       }`}
                       onClick={() => setSelectedCategory(category.id)}
                     >
@@ -322,13 +373,50 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
               </CardContent>
             </Card>
 
-            <Card className="col-span-3">
+            {/* Middle panel - Selector list */}
+            <Card className="col-span-2">
               <CardHeader className="p-3">
-                <CardTitle className="text-sm">Propriétés CSS</CardTitle>
+                <CardTitle className="text-sm">Sélecteurs</CardTitle>
                 <CardDescription>
-                  {selectedCategory === "all"
-                    ? "Toutes les propriétés"
-                    : categories.find((c) => c.id === selectedCategory)?.name}
+                  {filteredRules.length} sélecteur{filteredRules.length !== 1 ? 's' : ''} 
+                  {selectedCategory !== 'all' && `dans ${categories.find(c => c.id === selectedCategory)?.name.toLowerCase()}`}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[calc(100vh-300px)]">
+                  <div className="divide-y">
+                    {filteredRules.length > 0 ? (
+                      filteredRules.map((rule, index) => (
+                        <div 
+                          key={index} 
+                          className="p-3 hover:bg-muted/50 cursor-pointer border-l-4 border-transparent hover:border-primary/30"
+                        >
+                          <div className="font-mono text-sm text-foreground/90">{rule.selector}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {rule.properties.length} propriété{rule.properties.length > 1 ? 's' : ''}
+                            <span className="mx-2">•</span>
+                            {categories.find(c => c.id === rule.category)?.name}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center text-muted-foreground">
+                        {value
+                          ? "Aucun sélecteur trouvé dans cette catégorie"
+                          : "Aucune règle CSS définie. Commencez à écrire du CSS dans l'onglet 'Code CSS'."}
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+
+            {/* Right panel - Properties for selected rule */}
+            <Card className="col-span-2">
+              <CardHeader className="p-3">
+                <CardTitle className="text-sm">Propriétés</CardTitle>
+                <CardDescription>
+                  {filteredProperties.length} propriété{filteredProperties.length !== 1 ? 's' : ''} au total
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
@@ -336,12 +424,14 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
                   <div className="p-3 space-y-4">
                     {filteredProperties.length > 0 ? (
                       filteredProperties.map((prop, index) => (
-                        <div key={index} className="space-y-2">
+                        <div key={index} className="space-y-1">
                           <div className="flex items-center justify-between">
-                            <Label htmlFor={`prop-${index}`} className="font-medium">
+                            <Label htmlFor={`prop-${index}`} className="font-mono text-sm font-medium">
                               {prop.property}
                               {prop.description && (
-                                <span className="ml-2 text-xs text-muted-foreground">({prop.description})</span>
+                                <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                  {prop.description}
+                                </span>
                               )}
                             </Label>
                           </div>
@@ -349,14 +439,13 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
                             id={`prop-${index}`}
                             value={prop.value}
                             onChange={(e) => updateProperty(index, e.target.value)}
+                            className="font-mono text-sm"
                           />
                         </div>
                       ))
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
-                        {value
-                          ? "Aucune propriété trouvée dans cette catégorie"
-                          : "Aucune propriété CSS définie. Commencez à écrire du CSS dans l'onglet 'Code CSS'."}
+                        Aucune propriété à afficher
                       </div>
                     )}
                   </div>

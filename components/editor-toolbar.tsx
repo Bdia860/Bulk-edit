@@ -6,8 +6,8 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip"
 
 interface EditorToolbarProps {
-  mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer"
-  onModeChange: (mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer") => void
+  mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general"
+  onModeChange: (mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general") => void
   onCopy: () => void
   onSave: () => void
   onSearchReplace: () => void
@@ -39,6 +39,7 @@ export function EditorToolbar({
         }
       >
         <TabsList>
+          <TabsTrigger value="general">Général</TabsTrigger>
           <TabsTrigger value="content">Content</TabsTrigger>
           <TabsTrigger value="header">Header</TabsTrigger>
           <TabsTrigger value="footer">Footer</TabsTrigger>

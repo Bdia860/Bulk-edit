@@ -9,9 +9,6 @@ export interface Config {
 // Ajouter une fonction pour tester la connectivité de l'API
 export async function testApiConnection(token: string): Promise<{ success: boolean; message: string }> {
   try {
-    console.log("Test de connexion à l'API...")
-
-    // Utiliser la même URL et méthode que le script PowerShell qui fonctionne
     const response = await fetch(
       "https://api.kpulse.fr/k3-geosquare/offer_templates?per_page=1&page=1&sort=type_id%20DESC%20NULLS%20LAST&with_inactivated=0&only_deleted=0",
       {
@@ -31,8 +28,6 @@ export async function testApiConnection(token: string): Promise<{ success: boole
       }
     }
   } catch (error) {
-    console.error("Erreur lors du test de connexion:", error)
-
     if (error instanceof TypeError && error.message === "Failed to fetch") {
       return {
         success: false,
@@ -53,17 +48,8 @@ export async function fetchOfferTemplates(page = 1, perPage = 10, search = "", t
   }
 
   try {
-    // Utiliser la même URL que le script PowerShell qui fonctionne
     const apiUrl = `/api/proxy-offer-templates?per_page=${perPage}&page=${page}&search=${encodeURIComponent(search)}`
 
-    console.log("Fetching templates from local proxy...", {
-      url: apiUrl,
-      hasToken: !!token,
-      tokenLength: token.length,
-      tokenStart: token.substring(0, 5) + "...",
-    })
-
-    // Simplifier les headers pour correspondre au script PowerShell
     const response = await fetch(apiUrl, {
       method: "GET",
       headers: {
@@ -73,51 +59,21 @@ export async function fetchOfferTemplates(page = 1, perPage = 10, search = "", t
 
     if (!response.ok) {
       const errorBody = await response.text()
-      console.error("API Error Response:", {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorBody,
-      })
       throw new Error(`API error: ${response.status} ${response.statusText}. ${errorBody}`)
     }
 
     const data = await response.json()
-    console.log("API Response received successfully")
-
-    // Le reste du code reste identique...
-    console.log("API Raw Response Structure:", Object.keys(data))
-    console.log(
-      "Sample model structure:",
-      data.models && data.models.length > 0 ? Object.keys(data.models[0]) : "No models",
-    )
 
     if (!data || !data.models || !Array.isArray(data.models)) {
-      console.error("Unexpected response format:", data)
       throw new Error("Invalid response format")
-    }
-
-    // Log a sample template with its config and style
-    if (data.models.length > 0) {
-      const sampleModel = data.models[0]
-      console.log("Sample template from API - ID:", sampleModel.id)
-      console.log("Sample template config:", sampleModel.config)
-      console.log("Sample template style (direct property):", sampleModel.style)
-      console.log("Sample template header:", sampleModel.header)
-      console.log("Sample template footer:", sampleModel.footer)
     }
 
     return {
       data: data.models
         .map((model: any) => {
-          // Récupérer le style depuis la propriété de premier niveau
           const styleFromRoot = model.style || ""
-          console.log(`Template ${model.id} style:`, styleFromRoot)
-
-          // Récupérer le header et le footer
           const header = model.header || ""
           const footer = model.footer || ""
-          console.log(`Template ${model.id} header:`, header)
-          console.log(`Template ${model.id} footer:`, footer)
 
           // Créer la configuration avec le style
           const config = {
@@ -144,7 +100,6 @@ export async function fetchOfferTemplates(page = 1, perPage = 10, search = "", t
             footer: footer,
           }
 
-          console.log(`Template ${model.id} processed config:`, template.config)
           return template
         })
         .filter((template: any) => template !== null),
@@ -153,17 +108,6 @@ export async function fetchOfferTemplates(page = 1, perPage = 10, search = "", t
       current_page: data.current_page || page,
     }
   } catch (error) {
-    console.error("Fetch error:", error)
-
-    // Améliorer le diagnostic d'erreur
-    if (error instanceof TypeError && error.message === "Failed to fetch") {
-      console.error(
-        "Erreur réseau: Impossible de se connecter à l'API. Vérifiez votre connexion internet ou si l'API est accessible.",
-      )
-    } else if (error instanceof DOMException && error.name === "AbortError") {
-      console.error("Timeout: La requête a été abandonnée car elle a pris trop de temps.")
-    }
-
     throw error
   }
 }
@@ -184,12 +128,6 @@ export async function updateOfferTemplate(
   // Extraire le style de la config pour l'envoyer comme propriété de premier niveau
   const { style, ...configWithoutStyle } = config
 
-  console.log("Updating template with ID:", id)
-  console.log("Updating template with config:", configWithoutStyle)
-  console.log("Updating template with style:", style)
-  console.log("Updating template with header:", header)
-  console.log("Updating template with footer:", footer)
-
   try {
     const requestBody: any = {
       content,
@@ -201,19 +139,6 @@ export async function updateOfferTemplate(
     // Test 1: Envoyer des strings vides plutôt que undefined/null
     requestBody.header = header !== undefined ? header : ""
     requestBody.footer = footer !== undefined ? footer : ""
-
-    // Alternative pour tester si l'API préfère null ou omission complète :
-    // if (header !== undefined) {
-    //   requestBody.header = header
-    // }
-    // if (footer !== undefined) {
-    //   requestBody.footer = footer
-    // }
-
-    console.log("Request body:", JSON.stringify(requestBody, null, 2))
-    console.log("Request body keys:", Object.keys(requestBody))
-    console.log("Header value type:", typeof requestBody.header, "Value:", requestBody.header)
-    console.log("Footer value type:", typeof requestBody.footer, "Value:", requestBody.footer)
 
     const response = await fetch(`/api/proxy-offer-templates/${id}`, {
       method: "PUT",
@@ -236,7 +161,6 @@ export async function updateOfferTemplate(
     }
 
     const data = await response.json()
-    console.log("Update response:", data)
     return data
   } catch (error) {
     console.error("Update error:", error)

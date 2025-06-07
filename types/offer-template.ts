@@ -10,6 +10,7 @@ export interface OfferTemplate {
   id: string
   content: string
   name: string
+  description?: string
   type: string
   type_code: string
   deleted_at: string | null

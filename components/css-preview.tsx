@@ -26,7 +26,6 @@ export function CssPreview({ css, html, className }: CssPreviewProps) {
   // Mettre à jour l'iframe lorsque html ou css changent
   useEffect(() => {
     if (iframeRef.current && html) {
-      console.log("CssPreview - Injecting CSS:", css); // AJOUTER CE LOG
       const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document
       if (iframeDoc) {
         iframeDoc.open()
