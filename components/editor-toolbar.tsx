@@ -6,8 +6,8 @@ import { Tabs, TabsList, TabsTrigger } from "./ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip"
 
 interface EditorToolbarProps {
-  mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general"
-  onModeChange: (mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general") => void
+  mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images"
+  onModeChange: (mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images") => void
   onCopy?: () => void
   onSave?: () => void
   onSearchReplace?: () => void
@@ -37,7 +37,7 @@ export function EditorToolbar({
       <Tabs
         value={mode}
         onValueChange={(value) =>
-          onModeChange(value as "content" | "style" | "logs" | "css-preview" | "header" | "footer")
+          onModeChange(value as "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images")
         }
       >
         <TabsList>
@@ -47,6 +47,7 @@ export function EditorToolbar({
           <TabsTrigger value="footer">Footer</TabsTrigger>
           <TabsTrigger value="style">Style</TabsTrigger>
           <TabsTrigger value="css-preview">CSS Preview</TabsTrigger>
+          <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
       </Tabs>

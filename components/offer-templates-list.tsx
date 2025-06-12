@@ -29,6 +29,7 @@ import { Topbar } from "./topbar"
 import { SaveAllDialog } from "./save-all-dialog"
 import { ConnectionTestDialog } from "./connection-test-dialog"
 import { ExportMultipleDialog } from "./export-multiple-dialog"
+import { ImageRotator } from "./image-rotator"
 import TemplateEditor from "./templates/TemplateEditor"
 import { Switch } from "./ui/switch"
 
@@ -239,8 +240,7 @@ export default function OfferTemplatesList() {
   const { token: apiToken, login, logout, isAuthenticated } = useAuthContext()
 
   // Définition des modes de l'éditeur
-  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general">(
-    "general",
+  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images">("general",
   )
 
   // Add a new state for CSS preview
@@ -1561,6 +1561,23 @@ export default function OfferTemplatesList() {
                       onChange={(e) => handleFooterChange(e.target.value)}
                       spellCheck={false}
                       placeholder="Entrez le contenu du footer ici..."
+                    />
+                  </div>
+                )}
+                {editorMode === "images" && (
+                  <div className="h-full">
+                    <ImageRotator 
+                      content={editableContent}
+                      onContentChange={(newContent) => {
+                        if (selectedTemplateId) {
+                          setModifiedContents((prev) => ({
+                            ...prev,
+                            [selectedTemplateId]: newContent,
+                          }))
+                          updateTemplateStatus(selectedTemplateId, "Modifié")
+                          addModificationLog(selectedTemplateId, "Rotation d'image", "Une ou plusieurs images ont été pivotées")
+                        }
+                      }}
                     />
                   </div>
                 )}
