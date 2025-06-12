@@ -5,17 +5,17 @@ import type React from "react"
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, Lightbulb, WifiOff } from "lucide-react"
+import { AlertCircle, Lightbulb, WifiOff, Download } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import type { OfferTemplate, OfferTemplatesResponse, Config } from "../types/offer-template"
-import { fetchOfferTemplates, updateOfferTemplate } from "../services/api"
+import { fetchOfferTemplates, updateOfferTemplate, testApiConnection } from "../services/api"
 import hljs from "highlight.js/lib/core"
 import html from "highlight.js/lib/languages/xml"
 import "highlight.js/styles/github-dark.css"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Navigation } from "./navigation"
 import { SearchBar } from "./search-bar"
 import { TemplateList } from "./template-list"
@@ -28,7 +28,9 @@ import { CssPreview } from "./css-preview"
 import { Topbar } from "./topbar"
 import { SaveAllDialog } from "./save-all-dialog"
 import { ConnectionTestDialog } from "./connection-test-dialog"
+import { ExportMultipleDialog } from "./export-multiple-dialog"
 import TemplateEditor from "./templates/TemplateEditor"
+import { Switch } from "./ui/switch"
 
 hljs.registerLanguage("html", html)
 
@@ -199,6 +201,8 @@ export default function OfferTemplatesList() {
   const [templateSuggestions, setTemplateSuggestions] = useState<Record<string, number>>({})
   const [showDiff, setShowDiff] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [testingConnection, setTestingConnection] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<{success: boolean; message: string} | null>(null)
   const [templateStatus, setTemplateStatus] = useState<Record<string, TemplateStatus>>({})
   const [isSaving, setIsSaving] = useState(false)
   const { toast } = useToast()
@@ -218,6 +222,9 @@ export default function OfferTemplatesList() {
   const [isTokenDialogOpen, setIsTokenDialogOpen] = useState(false)
   const [isSearchReplaceModalOpen, setIsSearchReplaceModalOpen] = useState(false)
   const [isSuggestionsPanelOpen, setIsSuggestionsPanelOpen] = useState(false)
+  const [includeHtmlHead, setIncludeHtmlHead] = useState(true)
+  const [isDownloadOptionsOpen, setIsDownloadOptionsOpen] = useState(false)
+  const [isExportMultipleOpen, setIsExportMultipleOpen] = useState(false)
   const [headers, setHeaders] = useState<Record<string, string>>({})
   const [footers, setFooters] = useState<Record<string, string>>({})
   const [originalHeaders, setOriginalHeaders] = useState<Record<string, string>>({})
@@ -290,74 +297,80 @@ export default function OfferTemplatesList() {
       setLoading(false)
       return
     }
-
-    // Vérifier l'état de la connexion réseau
-    if (networkStatus === "offline") {
-      setError("Vous êtes actuellement hors ligne. Veuillez vérifier votre connexion internet et réessayer.")
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
+    
+    const result = await testApiConnection(apiToken);
+    setConnectionStatus(result);
+    
     try {
-      const response: OfferTemplatesResponse = await fetchOfferTemplates(1, 1000, "", apiToken)
-      if (!response || !response.data) {
-        throw new Error("Format de réponse invalide")
-      }
-      setTemplates(response.data)
+      if (result.success) {
+        // Initialize your data structures
+        const initialSuggestions: Record<string, number> = {};
+        const initialModifiedContents: Record<string, string> = {};
+        const initialOriginalContents: Record<string, string> = {};
+        const initialStatus: Record<string, TemplateStatus> = {};
+        const initialTemplateConfigs: Record<string, Config> = {};
+        const initialHeaders: Record<string, string> = {};
+        const initialFooters: Record<string, string> = {};
+        const initialOriginalHeaders: Record<string, string> = {};
+        const initialOriginalFooters: Record<string, string> = {};
+        
+        // Get response from API
+        const response = await fetchOfferTemplates(1, 1000, "", apiToken);
+        
+        // Process response data
+        response.data.forEach((template: OfferTemplate) => {
+          initialSuggestions[template.id] = detectSuggestions(template.content);
+          initialModifiedContents[template.id] = template.content;
+          initialOriginalContents[template.id] = template.content;
+          // Ne pas définir le statut Ouvert au chargement - seulement lors de la sélection
+          initialTemplateConfigs[template.id] = {
+            marginTop: template.config?.marginTop || "20",
+            marginRight: template.config?.marginRight || "20",
+            marginBottom: template.config?.marginBottom || "20",
+            marginLeft: template.config?.marginLeft || "20",
+            style: template.config?.style || ""
+          };
+          initialHeaders[template.id] = template.header || "";
+          initialFooters[template.id] = template.footer || "";
+          initialOriginalHeaders[template.id] = template.header || "";
+          initialOriginalFooters[template.id] = template.footer || "";
+        });
 
-      const initialSuggestions: Record<string, number> = {}
-      const initialModifiedContents: Record<string, string> = {}
-      const initialOriginalContents: Record<string, string> = {}
-      const initialStatus: Record<string, TemplateStatus> = {}
-      const initialTemplateConfigs: Record<string, Config> = {}
-      // Dans la fonction loadTemplates, après la déclaration des variables initialXXX
-      const initialHeaders: Record<string, string> = {}
-      const initialFooters: Record<string, string> = {}
-      const initialOriginalHeaders: Record<string, string> = {}
-      const initialOriginalFooters: Record<string, string> = {}
+        // Update templates state with API response data
+        setTemplates(response.data)
+        
+        setTemplateSuggestions(initialSuggestions)
+        setModifiedContents(initialModifiedContents)
+        setOriginalContents(initialOriginalContents)
+        setTemplateStatus(initialStatus)
+        setTemplateConfigs(initialTemplateConfigs)
 
-      // Dans la boucle response.data.forEach
-      response.data.forEach((template) => {
-        if (template && template.content) {
-          const detectedSuggestions = detectSuggestionsForTemplate(template.content)
-          initialSuggestions[template.id] = detectedSuggestions.length
-          initialModifiedContents[template.id] = template.content
-          initialOriginalContents[template.id] = template.content
-          initialStatus[template.id] = "Non ouvert"
+        // Après les setXXX existants
+        setHeaders(initialHeaders)
+        setFooters(initialFooters)
+        setOriginalHeaders(initialOriginalHeaders)
+        setOriginalFooters(initialOriginalFooters)
 
-          if (template.config) {
-            initialTemplateConfigs[template.id] = template.config
-          }
-
-          // Stocker les headers et footers
-          initialHeaders[template.id] = template.header || ""
-          initialFooters[template.id] = template.footer || ""
-          initialOriginalHeaders[template.id] = template.header || ""
-          initialOriginalFooters[template.id] = template.footer || ""
+        if (response.data.length > 0) {
+          const firstTemplateId = response.data[0].id;
+          setSelectedTemplateId(firstTemplateId)
+          setSuggestions(detectSuggestionsForTemplate(response.data[0].content))
+          
+          // Marquer uniquement le template sélectionné comme "Ouvert"
+          updateTemplateStatus(firstTemplateId, "Ouvert")
         }
-      })
-      setTemplateSuggestions(initialSuggestions)
-      setModifiedContents(initialModifiedContents)
-      setOriginalContents(initialOriginalContents)
-      setTemplateStatus(initialStatus)
-      setTemplateConfigs(initialTemplateConfigs)
-
-      // Après les setXXX existants
-      setHeaders(initialHeaders)
-      setFooters(initialFooters)
-      setOriginalHeaders(initialOriginalHeaders)
-      setOriginalFooters(initialOriginalFooters)
-
-
-
-      if (response.data.length > 0) {
-        setSelectedTemplateId(response.data[0].id)
-        setSuggestions(detectSuggestionsForTemplate(response.data[0].content))
       }
     } catch (err) {
       console.error("Erreur lors du chargement des templates:", err)
+      // Vérification si l'erreur vient d'une réponse HTML inattendue (erreur proxy)
+      if (err instanceof SyntaxError && err.message.includes('Unexpected token <')) {
+        setError("Erreur proxy: La réponse de l'API n'est pas au format JSON. Il est probable que le serveur ait retourné une page d'erreur HTML (ex: 500 ou 502). Veuillez vérifier la connexion au serveur ou contactez l'administrateur.");
+        toast({
+          title: "Erreur serveur",
+          description: "La réponse de l'API n'est pas au format JSON (probablement une page d'erreur HTML).",
+          variant: "destructive",
+        });
+      }
 
       // Améliorer le message d'erreur pour être plus spécifique
       if (err instanceof Error) {
@@ -650,20 +663,24 @@ export default function OfferTemplatesList() {
       };
 
       // Mettre à jour le template avec toutes les propriétés en une seule requête
-      await updateOfferTemplate(
-        selectedTemplateId,
-        updatedTemplate.content || '', // S'assurer que content est une string
-        {
-          marginTop: updatedTemplate.config.marginTop || '25mm',
-          marginRight: updatedTemplate.config.marginRight || '10mm',
-          marginBottom: updatedTemplate.config.marginBottom || '25mm',
-          marginLeft: updatedTemplate.config.marginLeft || '10mm',
-          style: updatedTemplate.config.style || ''
-        },
-        apiToken,
-        updatedTemplate.header || '', // S'assurer que header est une string
-        updatedTemplate.footer || ''  // S'assurer que footer est une string
-      );
+      if (selectedTemplateId) {
+        await updateOfferTemplate(
+          selectedTemplateId,
+          updatedTemplate.content || '', // S'assurer que content est une string
+          {
+            marginTop: updatedTemplate.config.marginTop || '25mm',
+            marginRight: updatedTemplate.config.marginRight || '10mm',
+            marginBottom: updatedTemplate.config.marginBottom || '25mm',
+            marginLeft: updatedTemplate.config.marginLeft || '10mm',
+            style: updatedTemplate.config.style || ''
+          },
+          apiToken,
+          updatedTemplate.header || '', // S'assurer que header est une string
+          updatedTemplate.footer || ''  // S'assurer que footer est une string
+        );
+      } else {
+        throw new Error("Impossible de mettre à jour le template: aucun template sélectionné");
+      }
 
       // Mettre à jour l'état local avec les nouvelles valeurs
       updateTemplate(selectedTemplateId, {
@@ -1131,6 +1148,97 @@ export default function OfferTemplatesList() {
     return detectedSuggestions.length
   }
 
+  // Fonction pour télécharger le contenu HTML du template sélectionné
+  const downloadHtmlContent = useCallback(() => {
+    setIsDownloadOptionsOpen(true)
+  }, [])
+
+  const openExportMultiple = useCallback(() => {
+    setIsExportMultipleOpen(true)
+  }, []);
+
+  // Fonction qui gère le téléchargement effectif après configuration
+  const handleDownloadHtml = useCallback(() => {
+    if (!selectedTemplateId || !selectedTemplate) {
+      toast({
+        title: "Erreur",
+        description: "Aucun template sélectionné",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Fermer la boîte de dialogue
+    setIsDownloadOptionsOpen(false);
+
+    // Récupérer le contenu modifié du template
+    const content = modifiedContents[selectedTemplateId];
+    const templateName = selectedTemplate.name;
+    const sanitizedName = templateName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    
+    // Récupérer les styles CSS personnalisés
+    const customStyle = templateConfigs[selectedTemplateId]?.style || "";
+    
+    // Récupérer les marges
+    const config = templateConfigs[selectedTemplateId];
+    
+    // Construire le fichier HTML en fonction des options sélectionnées
+    let htmlContent;
+    
+    if (includeHtmlHead) {
+      // Version complète avec head
+      htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${templateName}</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: ${config?.marginTop || "25mm"} ${config?.marginRight || "10mm"} ${config?.marginBottom || "25mm"} ${config?.marginLeft || "10mm"};
+    }
+    ${customStyle}
+  </style>
+</head>
+<body>
+  ${content}
+</body>
+</html>`;
+    } else {
+      // Version simplifiée sans head
+      htmlContent = content;
+    }
+    
+    // Créer un blob et un lien de téléchargement
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${sanitizedName}.html`;
+    document.body.appendChild(link);
+    link.click();
+    
+    // Nettoyer
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+    
+    toast({
+      title: "Téléchargement réussi",
+      description: `Le fichier ${sanitizedName}.html a été téléchargé.`,
+    });
+    
+    // Ajouter une entrée dans les logs
+    addModificationLog(
+      selectedTemplateId,
+      "Téléchargement HTML",
+      `Le template a été téléchargé au format HTML ${includeHtmlHead ? "complet" : "sans head"}.`
+    );
+    
+  }, [selectedTemplateId, selectedTemplate, modifiedContents, templateConfigs, toast, addModificationLog, includeHtmlHead]);
+
   // Calculer le nombre total de suggestions dans tous les templates
   const totalSuggestionsCount = Object.values(templateSuggestions).reduce((sum, count) => sum + count, 0)
 
@@ -1235,7 +1343,7 @@ export default function OfferTemplatesList() {
       <div className="flex-1 flex overflow-hidden">
         <div className="w-80 border-r flex flex-col">
           <div className="p-4 border-b space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between space-x-2 sticky top-0 z-10 bg-background mb-2">
               <SearchBar
                 value={globalSearchTerm}
                 onChange={setGlobalSearchTerm}
@@ -1243,15 +1351,24 @@ export default function OfferTemplatesList() {
                 placeholder="Search templates..."
                 className="flex-1"
               />
-              <Button
-                variant="outline"
-                size="icon"
-                className="ml-2 flex-shrink-0"
-                onClick={() => setIsSuggestionsPanelOpen(true)}
-                title="Suggestions de corrections"
-              >
-                <Lightbulb className="h-4 w-4" />
-              </Button>
+              <div className="flex space-x-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={openExportMultiple}
+                  title="Export multiple"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setIsSuggestionsPanelOpen(true)}
+                  title="Suggestions de corrections"
+                >
+                  <Lightbulb className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{templates.length} templates</span>
@@ -1301,6 +1418,7 @@ export default function OfferTemplatesList() {
             onCopy={copyToClipboard}
             onSave={handleSaveToGeosquare}
             onSearchReplace={() => setIsSearchReplaceModalOpen(true)}
+            onDownloadHtml={downloadHtmlContent}
             isCopied={copied}
             isSaving={isSaving}
             canSave={Boolean(selectedTemplateId && isContentOrConfigModified())}
@@ -1491,6 +1609,43 @@ export default function OfferTemplatesList() {
         onTokenInvalid={() => setIsTokenDialogOpen(true)}
       />
 
+      {/* Dialogue pour les options de téléchargement HTML */}
+      <Dialog
+        open={isDownloadOptionsOpen}
+        onOpenChange={setIsDownloadOptionsOpen}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Options de téléchargement HTML</DialogTitle>
+            <DialogDescription>Configurez les options pour le fichier HTML</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between space-x-2">
+              <div className="space-y-0.5">
+                <Label htmlFor="includeHead">Inclure la partie &lt;head&gt;</Label>
+                <p className="text-sm text-muted-foreground">
+                  Inclut les métadonnées, le titre et les styles CSS
+                </p>
+              </div>
+              <Switch
+                id="includeHead"
+                checked={includeHtmlHead}
+                onCheckedChange={setIncludeHtmlHead}
+              />
+            </div>
+            <DialogFooter className="sm:justify-end">
+              <Button variant="outline" onClick={() => setIsDownloadOptionsOpen(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleDownloadHtml}>
+                <Download className="h-4 w-4 mr-2" />
+                Télécharger
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <SearchReplaceModal
         isOpen={isSearchReplaceModalOpen}
         onClose={() => setIsSearchReplaceModalOpen(false)}
@@ -1498,6 +1653,16 @@ export default function OfferTemplatesList() {
         currentTemplateId={selectedTemplateId || ""}
         contents={modifiedContents}
         onApplyChanges={handleApplyChanges}
+      />
+
+      <ExportMultipleDialog
+        isOpen={isExportMultipleOpen}
+        onClose={() => setIsExportMultipleOpen(false)}
+        templates={templates}
+        contents={modifiedContents}
+        templateConfigs={templateConfigs}
+        headers={headers}
+        footers={footers}
       />
 
       {isSuggestionsPanelOpen && (

@@ -1,6 +1,6 @@
 "use client"
 
-import { Copy, Save, Search, Lightbulb } from "lucide-react"
+import { Copy, Save, Search, Lightbulb, Download } from "lucide-react"
 import { Button } from "./ui/button"
 import { Tabs, TabsList, TabsTrigger } from "./ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip"
@@ -8,13 +8,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 interface EditorToolbarProps {
   mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general"
   onModeChange: (mode: "content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general") => void
-  onCopy: () => void
-  onSave: () => void
-  onSearchReplace: () => void
+  onCopy?: () => void
+  onSave?: () => void
+  onSearchReplace?: () => void
   onSuggestions?: () => void
-  isCopied: boolean
-  isSaving: boolean
-  canSave: boolean
+  onDownloadHtml?: () => void
+  isCopied?: boolean
+  isSaving?: boolean
+  canSave?: boolean
   className?: string
 }
 
@@ -25,6 +26,7 @@ export function EditorToolbar({
   onSave,
   onSearchReplace,
   onSuggestions,
+  onDownloadHtml,
   isCopied,
   isSaving,
   canSave,
@@ -94,6 +96,17 @@ export function EditorToolbar({
               <kbd>⌘</kbd> + <kbd>S</kbd>
             </TooltipContent>
           </Tooltip>
+          {onDownloadHtml && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="outline" onClick={onDownloadHtml}>
+                  <Download className="h-4 w-4 mr-2" />
+                  HTML
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Télécharger au format HTML</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </TooltipProvider>
     </div>
