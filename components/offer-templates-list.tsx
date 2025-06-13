@@ -5,7 +5,7 @@ import React from "react"
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, Lightbulb, WifiOff, Download } from "lucide-react"
+import { AlertCircle, Lightbulb, WifiOff, Download, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -247,10 +247,100 @@ export default function OfferTemplatesList() {
   const currentTemplate = React.useMemo(() => templates.find(t => t.id === selectedTemplateId), [templates, selectedTemplateId]);
 
   // Définition des modes de l'éditeur
-  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images" | "plan" | "tables">("general");
+  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images" | "plan" | "tables" | "pdf">("general");
 
   // Add a new state for CSS preview
   const [cssPreview, setCssPreview] = useState<boolean>(false)
+
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // When selectedTemplateId changes, reset PDF-related states.
+    // Capture the current pdfPreviewUrl to revoke it after state update.
+    const previousPdfPreviewUrl = pdfPreviewUrl;
+
+    setPdfPreviewUrl(null);
+    setPdfError(null);
+    setIsGeneratingPdf(false);
+
+    if (previousPdfPreviewUrl) {
+      URL.revokeObjectURL(previousPdfPreviewUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplateId]); // Only re-run the effect if selectedTemplateId changes
+
+  const handleGeneratePdf = async () => {
+    if (!selectedTemplateId || !currentTemplate) {
+      toast({
+        title: "Erreur",
+        description: "Aucun template sélectionné pour la génération PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingPdf(true);
+    setPdfPreviewUrl(null);
+    setPdfError(null);
+
+    try {
+      const templateConfig = templateConfigs[selectedTemplateId] || currentTemplate.config || {};
+      const margins = {
+        top: templateConfig.marginTop || '10mm',
+        bottom: templateConfig.marginBottom || '10mm',
+        left: templateConfig.marginLeft || '10mm',
+        right: templateConfig.marginRight || '10mm',
+      };
+
+      const htmlContent = modifiedContents[selectedTemplateId] ?? currentTemplate.content ?? '';
+      const headerHtml = headers[selectedTemplateId] ?? currentTemplate.header ?? '';
+      const footerHtml = footers[selectedTemplateId] ?? currentTemplate.footer ?? '';
+      const cssStyles = style || templateConfig.style || '';
+
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          htmlContent,
+          headerHtml,
+          footerHtml,
+          cssStyles,
+          margins,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue lors de la génération du PDF.' }));
+        const errorMessage = errorData.details || errorData.error || `Erreur HTTP ${response.status}`;
+        setPdfError(errorMessage);
+        toast({
+          title: "Échec de la génération PDF",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const pdfBlob = await response.blob();
+      const previewUrl = URL.createObjectURL(pdfBlob);
+      setPdfPreviewUrl(previewUrl);
+
+    } catch (err: any) {
+      const errorMessage = err.message || "Une erreur s'est produite lors de la communication avec le serveur.";
+      setPdfError(errorMessage);
+      toast({
+        title: "Erreur de génération PDF",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   // Surveiller l'état de la connexion réseau
   useEffect(() => {
@@ -412,7 +502,7 @@ export default function OfferTemplatesList() {
     }
 
     const templateId = currentTemplate.id;
-    const currentContent = modifiedContents[templateId] ?? currentTemplate.contents[activeLang]?.content ?? '';
+    const currentContent = modifiedContents[templateId] ?? currentTemplate.content ?? '';
 
     if (currentContent === undefined || currentContent === null) {
         toast({ title: "Erreur", description: "Contenu du template non trouvé.", variant: "destructive" });
@@ -1516,7 +1606,7 @@ export default function OfferTemplatesList() {
             isSaving={isSaving}
             canSave={Boolean(selectedTemplateId && isContentOrConfigModified())}
           />
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-auto p-4 min-h-0">
             {selectedTemplate ? (
               <div className="h-full">
                 {/* Editor content based on mode */}
@@ -1619,7 +1709,7 @@ export default function OfferTemplatesList() {
                 )}
                 {editorMode === 'tables' && currentTemplate && (
                   <TablesOutline
-                    content={modifiedContents[currentTemplate.id] ?? currentTemplate.contents[activeLang]?.content ?? ''}
+                    content={modifiedContents[currentTemplate.id] ?? currentTemplate.content ?? ''}
                     onDeleteTable={handleDeleteTableFromOutline}
                   />
                 )}
@@ -1681,6 +1771,49 @@ export default function OfferTemplatesList() {
                         }
                       }}
                     />
+                  </div>
+                )}
+                {editorMode === "pdf" && (
+                  <div className="p-4 space-y-4 h-full flex flex-col">
+                    <div className="flex-shrink-0">
+                      <h2 className="text-xl font-semibold">Génération PDF</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Générez un aperçu PDF pour ce template. Assurez-vous que wkhtmltopdf est installé sur le serveur.
+                      </p>
+                      <Button onClick={handleGeneratePdf} disabled={isGeneratingPdf || !selectedTemplateId}>
+                        {isGeneratingPdf ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Génération en cours...
+                          </>
+                        ) : (
+                          "Générer le PDF"
+                        )}
+                      </Button>
+                    </div>
+
+                    {pdfError && (
+                      <div className="mt-4 p-4 bg-destructive/10 text-destructive rounded-md">
+                        <p className="font-semibold">Erreur de génération :</p>
+                        <p className="text-sm">{pdfError}</p>
+                      </div>
+                    )}
+
+                    {pdfPreviewUrl && !pdfError && (
+                      <div className="mt-4 flex-grow min-h-0">
+                        <iframe
+                          src={pdfPreviewUrl}
+                          title="Aperçu PDF"
+                          className="w-full h-full border rounded-md"
+                        />
+                      </div>
+                    )}
+
+                    {!isGeneratingPdf && !pdfPreviewUrl && !pdfError && (
+                      <div className="mt-4 flex-grow flex items-center justify-center border-dashed border-2 border-gray-300 rounded-md p-8 text-center text-muted-foreground">
+                        L'aperçu du PDF apparaîtra ici après génération.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

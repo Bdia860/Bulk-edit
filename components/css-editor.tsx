@@ -283,7 +283,7 @@ export function CssEditor({ value, onChange, onApply, className }: CssEditorProp
   const isEmpty = !value || value.trim() === ""
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <div className={`flex flex-col h-full min-h-[400px] ${className}`}>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <TabsList>
