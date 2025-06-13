@@ -51,7 +51,10 @@ export function TemplateList({
       )}
       <ScrollArea className={`${className} scale-x-115 origin-left flex-1`}>
         <div className="space-y-1 p-2 pr-6 w-[calc(100%+1.5rem)]">
-        {templates.map((template) => {
+        {[...templates]
+          // Tri alphabétique par nom
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((template) => {
           const status = getStatus(template.id)
           const suggestions = getSuggestions(template.id)
 
