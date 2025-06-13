@@ -29,7 +29,7 @@ import { Topbar } from "./topbar"
 import { SaveAllDialog } from "./save-all-dialog"
 import { ConnectionTestDialog } from "./connection-test-dialog"
 import { ExportMultipleDialog } from "./export-multiple-dialog"
-import { ImageRotator } from "./image-rotator";
+import { ImageManager } from "./image-manager";
 import { TablesOutline } from "./TablesOutline";
 import { ContentOutline } from "./content-outline"
 import { removeMultipleSectionsFromHtml, type HeadingInfo } from "../lib/html-utils";
@@ -1756,19 +1756,17 @@ export default function OfferTemplatesList() {
                     />
                   </div>
                 )}
-                {editorMode === "images" && (
-                  <div className="h-full">
-                    <ImageRotator 
-                      content={editableContent}
+                {editorMode === "images" && selectedTemplateId && currentTemplate && (
+                  <div className="p-4">
+                    <ImageManager
+                      content={modifiedContents[selectedTemplateId] ?? currentTemplate.content ?? ""}
                       onContentChange={(newContent) => {
-                        if (selectedTemplateId) {
-                          setModifiedContents((prev) => ({
-                            ...prev,
-                            [selectedTemplateId]: newContent,
-                          }))
-                          updateTemplateStatus(selectedTemplateId, "Modifié")
-                          addModificationLog(selectedTemplateId, "Rotation d'image", "Une ou plusieurs images ont été pivotées")
-                        }
+                        setModifiedContents((prev) => ({
+                          ...prev,
+                          [selectedTemplateId]: newContent,
+                        }));
+                        updateTemplateStatus(selectedTemplateId, "Modifié");
+                        addModificationLog(selectedTemplateId, "Modification d'image", "Une image a été modifiée (rotation ou remplacement)");
                       }}
                     />
                   </div>
