@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -29,8 +29,11 @@ import { Topbar } from "./topbar"
 import { SaveAllDialog } from "./save-all-dialog"
 import { ConnectionTestDialog } from "./connection-test-dialog"
 import { ExportMultipleDialog } from "./export-multiple-dialog"
-import { ImageRotator } from "./image-rotator"
+import { ImageRotator } from "./image-rotator";
+import { TablesOutline } from "./TablesOutline";
 import { ContentOutline } from "./content-outline"
+import { removeMultipleSectionsFromHtml, type HeadingInfo } from "../lib/html-utils";
+import { removeTableFromHtml } from "../lib/table-utils";
 import TemplateEditor from "./templates/TemplateEditor"
 import { Switch } from "./ui/switch"
 
@@ -235,14 +238,16 @@ export default function OfferTemplatesList() {
   const [isSavingAll, setIsSavingAll] = useState(false)
   const [savingProgress, setSavingProgress] = useState({ current: 0, total: 0 })
   const [isConnectionTestDialogOpen, setIsConnectionTestDialogOpen] = useState(false)
-  const [networkStatus, setNetworkStatus] = useState<"online" | "offline" | "unknown">("unknown")
+  const [networkStatus, setNetworkStatus] = useState<"online" | "offline" | "unknown">("unknown");
+  const [activeLang, setActiveLang] = useState<string>('fr'); // Assuming 'fr' as default or primary language
 
   // Utiliser le contexte d'authentification
-  const { token: apiToken, login, logout, isAuthenticated } = useAuthContext()
+  const { token: apiToken, login, logout, isAuthenticated } = useAuthContext();
+
+  const currentTemplate = React.useMemo(() => templates.find(t => t.id === selectedTemplateId), [templates, selectedTemplateId]);
 
   // Définition des modes de l'éditeur
-  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images" | "plan">("general",
-  )
+  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images" | "plan" | "tables">("general");
 
   // Add a new state for CSS preview
   const [cssPreview, setCssPreview] = useState<boolean>(false)
@@ -394,7 +399,41 @@ export default function OfferTemplatesList() {
     } finally {
       setLoading(false)
     }
-  }, [apiToken, networkStatus, logout])
+  }, [apiToken, networkStatus, logout]);
+
+  const handleDeleteTableFromOutline = async (tableOriginalIndex: number) => {
+    if (!currentTemplate || !activeLang) {
+      toast({
+        title: "Erreur",
+        description: "Aucun template ou langue active n'est sélectionné(e).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const templateId = currentTemplate.id;
+    const currentContent = modifiedContents[templateId] ?? currentTemplate.contents[activeLang]?.content ?? '';
+
+    if (currentContent === undefined || currentContent === null) {
+        toast({ title: "Erreur", description: "Contenu du template non trouvé.", variant: "destructive" });
+        return;
+    }
+
+    const newContent = removeTableFromHtml(currentContent, tableOriginalIndex);
+
+    if (newContent !== currentContent) {
+      setModifiedContents(prev => ({ ...prev, [templateId]: newContent }));
+      addModificationLog(
+        templateId,
+        activeLang, 
+        `Tableau (index original ${tableOriginalIndex}) supprimé via l'onglet Tableaux.`
+      );
+      toast({ title: "Tableau supprimé", description: "Le tableau a été retiré du contenu." });
+      updateTemplateStatus(templateId, "Modifié");
+    } else {
+      toast({ title: "Information", description: "Le tableau n'a pas pu être supprimé ou était déjà absent." }); // Removed invalid variant: "info"
+    }
+  };
 
   useEffect(() => {
     if (!apiToken) {
@@ -665,6 +704,15 @@ export default function OfferTemplatesList() {
 
       // Mettre à jour le template avec toutes les propriétés en une seule requête
       if (selectedTemplateId) {
+        if (!apiToken) {
+          toast({
+            title: "Erreur d'authentification",
+            description: "Le jeton d'API n'est pas défini. Veuillez vous connecter.",
+            variant: "destructive",
+          });
+          setIsTokenDialogOpen(true);
+          return;
+        }
         await updateOfferTemplate(
           selectedTemplateId,
           updatedTemplate.content || '', // S'assurer que content est une string
@@ -1020,31 +1068,36 @@ export default function OfferTemplatesList() {
     return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
   }
 
-  const handleArchiveTemplate = async (templateId: string) => {
-    if (!templateId) return
-
-    try {
-      await archiveOfferTemplate(templateId, apiToken)
-      toast({
-        title: "Archivage réussi",
-        description: "Le modèle a été archivé avec succès.",
-        duration: 3000,
-      })
-      // Remove the archived template from the list
-      setTemplates((prevTemplates) => prevTemplates.filter((template) => template.id !== templateId))
-      if (selectedTemplateId === templateId) {
-        setSelectedTemplateId(null)
-      }
-    } catch (error) {
-      console.error("Erreur lors de l'archivage du modèle:", error)
-      toast({
-        title: "Erreur d'archivage",
-        description: "Une erreur s'est produite lors de l'archivage du modèle.",
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-  }
+  // const handleArchive = async (templateId: string) => {
+  //   const isConfirmed = window.confirm(
+  //     "Êtes-vous sûr de vouloir archiver ce template ? Cette action est réversible."
+  //   );
+  //   if (isConfirmed) {
+  //     try {
+  //       if (!apiToken) {
+  //         throw new Error("Le jeton d'API est requis pour cette action.");
+  //       }
+  //       await archiveOfferTemplate(templateId, apiToken);
+  //       // Mettre à jour l'état pour refléter que le template est archivé
+  //       // par exemple, en le retirant de la liste principale
+  //       setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+  //       if (selectedTemplateId === templateId) {
+  //         setSelectedTemplateId(null);
+  //       }
+  //       toast({
+  //         title: "Template Archivé",
+  //         description: "Le template a été archivé avec succès.",
+  //       });
+  //     } catch (error) {
+  //       console.error("Erreur lors de l'archivage du template:", error);
+  //       toast({
+  //         title: "Erreur d'archivage",
+  //         description: (error as Error).message,
+  //         variant: "destructive",
+  //       });
+  //     }
+  //   }
+  // };
 
   const handleTokenSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1232,13 +1285,52 @@ export default function OfferTemplatesList() {
     });
     
     // Ajouter une entrée dans les logs
-    addModificationLog(
-      selectedTemplateId,
-      "Téléchargement HTML",
-      `Le template a été téléchargé au format HTML ${includeHtmlHead ? "complet" : "sans head"}.`
-    );
+    if (selectedTemplateId) { // Ensure selectedTemplateId is not null
+      addModificationLog(
+        selectedTemplateId,
+        "Téléchargement HTML",
+        `Le template a été téléchargé au format HTML ${includeHtmlHead ? "complet" : "sans head"}.`
+      );
+    }
     
   }, [selectedTemplateId, selectedTemplate, modifiedContents, templateConfigs, toast, addModificationLog, includeHtmlHead]);
+
+  const handleDeleteSectionFromOutline = useCallback((headingInfos: HeadingInfo[]) => {
+    if (!selectedTemplateId) {
+      toast({
+        title: "Erreur",
+        description: "Aucun template n'est sélectionné.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (headingInfos.length === 0) return;
+
+    const currentHtml = modifiedContents[selectedTemplateId] ?? originalContents[selectedTemplateId] ?? '';
+
+    const newHtmlContent = removeMultipleSectionsFromHtml(currentHtml, headingInfos);
+
+    setModifiedContents(prev => ({
+      ...prev,
+      [selectedTemplateId]: newHtmlContent,
+    }));
+
+    updateTemplateStatus(selectedTemplateId, "Modifié");
+
+    const logDetails = `Suppression de ${headingInfos.length} section(s) via le Plan. Titres: ${headingInfos.map(h => `"${h.text}"`).join(', ')}`;
+    addModificationLog(
+      selectedTemplateId,
+      "Suppression de sections (Plan)",
+      logDetails
+    );
+
+    toast({
+      title: "Sections Supprimées",
+      description: `${headingInfos.length} section(s) ont été supprimées du contenu.`,
+    });
+  }, [selectedTemplateId, modifiedContents, originalContents, updateTemplateStatus, addModificationLog, toast]);
+
 
   // Calculer le nombre total de suggestions dans tous les templates
   const totalSuggestionsCount = Object.values(templateSuggestions).reduce((sum, count) => sum + count, 0)
@@ -1402,7 +1494,7 @@ export default function OfferTemplatesList() {
                   updateTemplateStatus(template.id, "Ouvert")
                 }
               }}
-              onArchive={(template) => handleArchiveTemplate(template.id)}
+              // onArchive={(template) => handleArchiveTemplate(template.id)}
               onSaveAll={handleSaveAll}
               isSavingAll={isSavingAll}
               hasPendingChanges={hasPendingChanges()}
@@ -1523,11 +1615,17 @@ export default function OfferTemplatesList() {
                   </div>
                 )}
                 {editorMode === "plan" && selectedTemplate && (
-                  <ContentOutline content={editableContent} />
+                  <ContentOutline content={editableContent} onDeleteSection={(headings) => handleDeleteSectionFromOutline(headings)} />
                 )}
-                {editorMode === "logs" && (
+                {editorMode === 'tables' && currentTemplate && (
+                  <TablesOutline
+                    content={modifiedContents[currentTemplate.id] ?? currentTemplate.contents[activeLang]?.content ?? ''}
+                    onDeleteTable={handleDeleteTableFromOutline}
+                  />
+                )}
+                {editorMode === "logs" && selectedTemplateId && (
                   <div className="space-y-2">
-                    {modificationLogs[selectedTemplateId]?.map((log, index) => (
+                    {modificationLogs[selectedTemplateId]?.map((log: ModificationLog, index: number) => (
                       <div key={index} className="flex items-start gap-4 text-sm">
                         <time className="text-muted-foreground whitespace-nowrap">
                           {log.timestamp.toLocaleString()}
@@ -1626,7 +1724,7 @@ export default function OfferTemplatesList() {
       <ConnectionTestDialog
         isOpen={isConnectionTestDialogOpen}
         onClose={() => setIsConnectionTestDialogOpen(false)}
-        token={apiToken}
+        token={apiToken || ''}
         onTokenInvalid={() => setIsTokenDialogOpen(true)}
       />
 

@@ -9,7 +9,7 @@ interface TemplateListProps {
   templates: OfferTemplate[]
   selectedId: string | null
   onSelect: (template: OfferTemplate) => void
-  onArchive: (template: OfferTemplate) => void
+  onArchive?: (template: OfferTemplate) => void
   onSaveAll?: () => void
   isSavingAll?: boolean
   hasPendingChanges?: boolean
@@ -99,18 +99,20 @@ export function TemplateList({
                         <ExternalLink className="h-3 w-3" />
                         <span className="sr-only">Open in Geosquare</span>
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onArchive(template)
-                        }}
-                      >
-                        <Archive className="h-3 w-3" />
-                        <span className="sr-only">Archive template</span>
-                      </Button>
+                      {onArchive && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onArchive(template)
+                          }}
+                        >
+                          <Archive className="h-4 w-4 text-muted-foreground" />
+                          <span className="sr-only">Archive template</span>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
