@@ -30,6 +30,7 @@ import { SaveAllDialog } from "./save-all-dialog"
 import { ConnectionTestDialog } from "./connection-test-dialog"
 import { ExportMultipleDialog } from "./export-multiple-dialog"
 import { ImageRotator } from "./image-rotator"
+import { ContentOutline } from "./content-outline"
 import TemplateEditor from "./templates/TemplateEditor"
 import { Switch } from "./ui/switch"
 
@@ -240,7 +241,7 @@ export default function OfferTemplatesList() {
   const { token: apiToken, login, logout, isAuthenticated } = useAuthContext()
 
   // Définition des modes de l'éditeur
-  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images">("general",
+  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images" | "plan">("general",
   )
 
   // Add a new state for CSS preview
@@ -1520,6 +1521,9 @@ export default function OfferTemplatesList() {
                       </div>
                     </div>
                   </div>
+                )}
+                {editorMode === "plan" && selectedTemplate && (
+                  <ContentOutline content={editableContent} />
                 )}
                 {editorMode === "logs" && (
                   <div className="space-y-2">
