@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { RotateCw, Replace } from "lucide-react"
+import { ImageInfoCard } from "./ImageInfoCard"
 
 interface ImageManagerProps {
   content: string
@@ -114,9 +115,10 @@ export function ImageManager({ content, onContentChange }: ImageManagerProps) {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {images.map((image) => (
-            <div key={image.id} className="relative group border rounded-md p-2">
+          <div key={image.id} className="border rounded-md p-2 flex flex-col gap-2">
+            <div className="relative group">
               <img src={image.src} alt="" className="w-full h-auto rounded-md object-cover" />
-              <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black bg-opacity-60 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black bg-opacity-60 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <Button size="icon" onClick={() => handleRotate(image)} disabled={processingIds.includes(image.id)}>
                   <RotateCw className={`h-4 w-4 ${processingIds.includes(image.id) ? 'animate-spin' : ''}`} />
                 </Button>
@@ -125,7 +127,18 @@ export function ImageManager({ content, onContentChange }: ImageManagerProps) {
                 </Button>
               </div>
             </div>
-          ))}
+
+            {/* Affichage des infos sous l'image, hors overlay */}
+            <ImageInfoCard
+  base64={image.src}
+  imgTag={image.tag}
+  onUpdateTag={() => {}}
+  onReplaceInContent={(oldTag, newTag) => {
+    onContentChange(content.replace(oldTag, newTag));
+  }}
+/>
+          </div>
+))} 
         </div>
       )}
       <input 

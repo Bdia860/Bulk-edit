@@ -24,7 +24,7 @@ import { useAuthContext } from "@/contexts/auth-context"
 import { SearchReplaceModal } from "./search-replace-modal"
 import { SuggestionsPanel } from "./suggestions-panel"
 import { CssEditor } from "./css-editor"
-import { CssPreview } from "./css-preview"
+
 import { Topbar } from "./topbar"
 import { SaveAllDialog } from "./save-all-dialog"
 import { ConnectionTestDialog } from "./connection-test-dialog"
@@ -205,7 +205,7 @@ export default function OfferTemplatesList() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [templateSuggestions, setTemplateSuggestions] = useState<Record<string, number>>({})
   const [showDiff, setShowDiff] = useState(false)
-  const [copied, setCopied] = useState(false)
+
   const [testingConnection, setTestingConnection] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<{success: boolean; message: string} | null>(null)
   const [templateStatus, setTemplateStatus] = useState<Record<string, TemplateStatus>>({})
@@ -247,10 +247,9 @@ export default function OfferTemplatesList() {
   const currentTemplate = React.useMemo(() => templates.find(t => t.id === selectedTemplateId), [templates, selectedTemplateId]);
 
   // Définition des modes de l'éditeur
-  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "css-preview" | "header" | "footer" | "general" | "images" | "plan" | "tables" | "pdf">("general");
+  const [editorMode, setEditorMode] = useState<"content" | "style" | "logs" | "header" | "footer" | "general" | "images" | "plan" | "tables" | "pdf">("general");
 
-  // Add a new state for CSS preview
-  const [cssPreview, setCssPreview] = useState<boolean>(false)
+
 
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
@@ -581,18 +580,7 @@ export default function OfferTemplatesList() {
     })
   }, [])
 
-  const copyToClipboard = useCallback(async () => {
-    if (selectedTemplateId) {
-      try {
-        await navigator.clipboard.writeText(modifiedContents[selectedTemplateId])
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-        updateTemplateStatus(selectedTemplateId, "Copié")
-      } catch (err) {
-        console.error("Failed to copy text: ", err)
-      }
-    }
-  }, [selectedTemplateId, modifiedContents, updateTemplateStatus])
+
 
   const handleSearchAndReplace = () => {
     if (!searchTerm || !selectedTemplateId) return
@@ -1257,34 +1245,7 @@ export default function OfferTemplatesList() {
     })
   }
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey) {
-        switch (e.key) {
-          case "s":
-            e.preventDefault()
-            if (selectedTemplateId && isContentOrConfigModified() && !isSaving) {
-              handleSaveToGeosquare()
-            }
-            break
-          case "c":
-            if (selectedTemplateId && !e.shiftKey) {
-              e.preventDefault()
-              copyToClipboard()
-            }
-            break
-          case "f":
-            e.preventDefault()
-            setIsSearchReplaceModalOpen(true)
-            break
-        }
-      }
-    }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [selectedTemplateId, isContentOrConfigModified, isSaving, handleSaveToGeosquare, copyToClipboard])
 
   const detectSuggestions = (content: string): number => {
     const detectedSuggestions = detectSuggestionsForTemplate(content)
@@ -1598,11 +1559,11 @@ export default function OfferTemplatesList() {
           <EditorToolbar
             mode={editorMode}
             onModeChange={setEditorMode}
-            onCopy={copyToClipboard}
+
             onSave={handleSaveToGeosquare}
             onSearchReplace={() => setIsSearchReplaceModalOpen(true)}
             onDownloadHtml={downloadHtmlContent}
-            isCopied={copied}
+
             isSaving={isSaving}
             canSave={Boolean(selectedTemplateId && isContentOrConfigModified())}
           />
@@ -1728,11 +1689,7 @@ export default function OfferTemplatesList() {
                     ))}
                   </div>
                 )}
-                {editorMode === "css-preview" && (
-                  <div className="h-full">
-                    <CssPreview css={style} html={editableContent} className="h-full" />
-                  </div>
-                )}
+
                 {/* Ajouter les onglets header et footer dans le rendu */}
                 {editorMode === "header" && (
                   <div className="h-full">
